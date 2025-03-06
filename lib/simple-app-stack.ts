@@ -1,6 +1,12 @@
 import * as cdk from 'aws-cdk-lib';
 import * as lambdanode from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+
+import * as custom from "aws-cdk-lib/custom-resources";
+import { generateBatch } from "../shared/util";
+import { movies } from "../seed/movies";
+
 
 import { Construct } from 'constructs';
 
@@ -27,5 +33,31 @@ export class SimpleAppStack extends cdk.Stack {
 
     // 输出 URL
     new cdk.CfnOutput(this, "Simple Function Url", { value: simpleFnURL.url });
+
+    const moviesTable = new dynamodb.Table(this, "MoviesTable", {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST, // 按请求收费（无需预置容量）
+      partitionKey: { name: "id", type: dynamodb.AttributeType.NUMBER }, // 主键
+      removalPolicy: cdk.RemovalPolicy.DESTROY, // 允许删除
+      tableName: "Movies", // 指定表名
+
+    });
+    new custom.AwsCustomResource(this, "moviesddbInitData", {
+      onCreate: {
+        service: "DynamoDB",
+        action: "batchWriteItem",
+        parameters: {
+          RequestItems: {
+            [moviesTable.tableName]: generateBatch(movies),
+          },
+        },
+        physicalResourceId: custom.PhysicalResourceId.of("moviesddbInitData"),
+      },
+      policy: custom.AwsCustomResourcePolicy.fromSdkCalls({
+        resources: [moviesTable.tableArn],
+      }),
+    });
+
+    
+    
   }
 }
