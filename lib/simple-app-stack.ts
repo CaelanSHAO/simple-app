@@ -8,6 +8,7 @@ import { generateBatch } from "../shared/util";
 import { movies } from "../seed/movies";
 
 
+
 import { Construct } from 'constructs';
 
 export class SimpleAppStack extends cdk.Stack {
@@ -57,6 +58,35 @@ export class SimpleAppStack extends cdk.Stack {
       }),
     });
 
+    const getMovieByIdFn = new lambdanode.NodejsFunction(
+      this,
+      "GetMovieByIdFn",
+      {
+        architecture: lambda.Architecture.ARM_64,
+        runtime: lambda.Runtime.NODEJS_22_X,
+        entry: `${__dirname}/../lambdas/getMovieById.ts`,
+        timeout: cdk.Duration.seconds(10),
+        memorySize: 128,
+        environment: {
+          TABLE_NAME: moviesTable.tableName,
+          REGION: 'eu-west-1',
+        },
+      }
+    );
+    
+    // 让 Lambda 通过 HTTP 访问
+    const getMovieByIdURL = getMovieByIdFn.addFunctionUrl({
+      authType: lambda.FunctionUrlAuthType.NONE, // 公开访问
+      cors: {
+        allowedOrigins: ["*"], // 允许所有前端应用请求
+      },
+    });
+    
+    // 允许 Lambda 读取 DynamoDB 数据
+    moviesTable.grantReadData(getMovieByIdFn);
+    
+    // 输出 Function URL
+    new cdk.CfnOutput(this, "Get Movie Function Url", { value: getMovieByIdURL.url });
     
     
   }
